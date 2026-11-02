@@ -1,0 +1,508 @@
+<!DOCTYPE html> <!-- 宣告文件類型為 HTML5 -->
+<html lang="zh-TW"> <!-- 設定網頁語言為繁體中文 -->
+<head>
+    <meta charset="UTF-8"> <!-- 設定字元編碼為 UTF-8 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- 確保行動裝置 RWD 響應式排版 -->
+    <title>超可愛森林塔防遊戲</title> <!-- 網頁標題 -->
+    <style>
+        /* CSS 樣式設定：打造粉嫩可愛的遊戲風格 */
+        body {
+            margin: 0; /* 清除預設邊距 */
+            padding: 0; /* 清除預設內距 */
+            background: linear-gradient(to bottom, #87CEEB, #E0F6FF); /* 天空漸層背景（白天感） */
+            font-family: 'Microsoft JhengHei', sans-serif; /* 使用圓潤易讀的中文字體 */
+            display: flex; /* 使用 Flexbox 置中排版 */
+            flex-direction: column; /* 垂直排列子元素 */
+            align-items: center; /* 水平置中 */
+            justify-content: center; /* 垂直置中 */
+            min-height: 100vh; /* 最小高度佔滿整個視窗 */
+            overflow: hidden; /* 防止捲軸出現 */
+        }
+
+        #game-container {
+            position: relative; /* 讓內部絕對定位元素（如 UI）相對於此容器對齊 */
+            background: #90EE90; /* 草地綠色背景 */
+            border: 6px solid #FFB6C1; /* 粉紅色可愛邊框 */
+            border-radius: 20px; /* 圓角邊框，營造可愛感 */
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15); /* 柔和陰影 */
+            overflow: hidden; /* 隱藏溢出邊界的內容 */
+        }
+
+        canvas {
+            display: block; /* 消除 Canvas 預設的行內空白間距 */
+            background: transparent; /* 背景透明，讓底層草地透出來 */
+        }
+
+        /* 遊戲上方資訊面板 */
+        .ui-panel {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.85); /* 半透明白色背景 */
+            padding: 10px 20px;
+            border-radius: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #555;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            pointer-events: none; /* 讓滑鼠事件穿透面板，不影響點擊遊戲畫面 */
+        }
+
+        .ui-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* 底部控制面板（防禦塔購買區與開始按鈕） */
+        .control-panel {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%); /* 水平置中 */
+            display: flex;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .tower-btn, .action-btn {
+            background: #FFD1DC; /* 粉嫩按鈕顏色 */
+            border: 3px solid #FF8DA1;
+            border-radius: 12px;
+            padding: 8px 15px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #d15268;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .tower-btn:hover, .action-btn:hover {
+            background: #FFB6C1;
+            transform: translateY(-2px); /* 滑鼠懸停時微幅上浮 */
+        }
+
+        .tower-btn.selected {
+            background: #FF6B8B;
+            color: white;
+            border-color: #d15268;
+        }
+
+        .action-btn {
+            background: #B5EAD7; /* 薄荷綠開始按鈕 */
+            border-color: #70C1B3;
+            color: #2D6A4F;
+        }
+
+        .action-btn:hover {
+            background: #87D3C1;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 遊戲主容器 -->
+    <div id="game-container">
+        <!-- 畫布：用於渲染遊戲畫面 -->
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+        <!-- 頂部資訊介面 (UI) -->
+        <div class="ui-panel">
+            <div class="ui-item">❤️ 生命值: <span id="livesText">20</span></div>
+            <div class="ui-item">💰 金幣: <span id="goldText">150</span></div>
+            <div class="ui-item">🌊 波次: <span id="waveText">1</span> / 10</div>
+        </div>
+
+        <!-- 底部互動按鈕介面 -->
+        <div class="control-panel">
+            <button class="tower-btn selected" id="btnTower1" onclick="selectTowerType(1)">🐰 兔兔砲塔 (50金)</button>
+            <button class="tower-btn" id="btnTower2" onclick="selectTowerType(2)">🐱 貓咪法塔 (80金)</button>
+            <button class="action-btn" onclick="startNextWave()">🚀 開始新波次</button>
+        </div>
+    </div>
+
+    <script>
+        /* 取得 Canvas 畫布與繪圖上下文 (2D) */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        /* 遊戲全域狀態變數 */
+        let lives = 20;       // 玩家初始生命值
+        let gold = 150;       // 玩家初始金幣
+        let wave = 1;         // 當前波次
+        let gameStarted = false; // 是否正在進行該波遊戲
+        let selectedTowerType = 1; // 目前選中的防禦塔類型 (1: 兔兔, 2: 貓咪)
+
+        /* 動態背景元素：雲朵陣列 */
+        let clouds = [
+            { x: 100, y: 80, speed: 0.5, size: 40 },
+            { x: 400, y: 50, speed: 0.3, size: 60 },
+            { x: 700, y: 120, speed: 0.4, size: 50 }
+        ];
+
+        /* 敵人走動的路徑點 (Waypoint 座標陣列) */
+        const path = [
+            { x: 0, y: 150 },
+            { x: 200, y: 150 },
+            { x: 200, y: 400 },
+            { x: 500, y: 400 },
+            { x: 500, y: 200 },
+            { x: 700, y: 200 },
+            { x: 700, y: 500 },
+            { x: 850, y: 500 }
+        ];
+
+        /* 遊戲實體陣列 */
+        let enemies = [];   // 儲存場上所有敵人
+        let towers = [];    // 儲存玩家放置的防禦塔
+        let bullets = [];   // 儲存飛向敵人的子彈
+        let waveEnemiesLeft = 0; // 當前波次剩餘未產生的敵人數量
+        let spawnTimer = 0;      // 敵人生成計時器
+
+        /* 防禦塔種類設定檔 */
+        const towerTypes = {
+            1: { cost: 50, range: 120, damage: 15, cooldown: 40, color: '#FF9AA2', name: '兔兔' },
+            2: { cost: 80, range: 160, damage: 25, cooldown: 60, color: '#FFB7B2', name: '貓咪' }
+        };
+
+        /* 切換選擇的防禦塔類型 */
+        function selectTowerType(type) {
+            selectedTowerType = type;
+            // 更新按鈕樣式切換選中狀態
+            document.getElementById('btnTower1').classList.remove('selected');
+            document.getElementById('btnTower2').classList.remove('selected');
+            document.getElementById('btnTower' + type).classList.add('selected');
+        }
+
+        /* 點擊畫布放置防禦塔事件 */
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            // 檢查是否點擊在敵人路徑上（路徑上不能放塔）
+            for (let i = 0; i < path.length - 1; i++) {
+                let p1 = path[i];
+                let p2 = path[i+1];
+                if (isPointNearSegment(mouseX, mouseY, p1.x, p1.y, p2.x, p2.y, 30)) {
+                    return; // 太靠近路徑，無法建造
+                }
+            }
+
+            // 檢查該位置是否已經有防禦塔
+            for (let tower of towers) {
+                let dist = Math.hypot(tower.x - mouseX, tower.y - mouseY);
+                if (dist < 40) return; // 距離太近，不能重疊建造
+            }
+
+            // 檢查金幣是否足夠購買防禦塔
+            let cost = towerTypes[selectedTowerType].cost;
+            if (gold >= cost) {
+                gold -= cost;
+                updateUI();
+                // 建立新防禦塔並加入陣列
+                towers.push({
+                    x: mouseX,
+                    y: mouseY,
+                    type: selectedTowerType,
+                    range: towerTypes[selectedTowerType].range,
+                    damage: towerTypes[selectedTowerType].damage,
+                    cooldown: towerTypes[selectedTowerType].cooldown,
+                    timer: 0
+                });
+            }
+        });
+
+        /* 輔助函數：計算點是否接近線段（用來限制不能蓋在路上） */
+        function isPointNearSegment(px, py, x1, y1, x2, y2, threshold) {
+            let A = px - x1;
+            let B = py - y1;
+            let C = x2 - x1;
+            let D = y2 - y1;
+            let dot = A * C + B * D;
+            let lenSq = C * C + D * D;
+            let param = -1;
+            if (lenSq !== 0) param = dot / lenSq;
+            let xx, yy;
+            if (param < 0) { xx = x1; yy = y1; }
+            else if (param > 1) { xx = x2; yy = y2; }
+            else { xx = x1 + param * C; yy = y1 + param * D; }
+            let dx = px - xx;
+            let dy = py - yy;
+            return Math.sqrt(dx * dx + dy * dy) < threshold;
+        }
+
+        /* 點擊開始新波次 */
+        function startNextWave() {
+            if (gameStarted && enemies.length > 0) return; // 如果上一波還沒打完不能開始
+            gameStarted = true;
+            waveEnemiesLeft = 5 + wave * 3; // 隨著波次增加敵人數量
+            spawnTimer = 0;
+        }
+
+        /* 更新介面文字顯示 */
+        function updateUI() {
+            document.getElementById('livesText').innerText = lives;
+            document.getElementById('goldText').innerText = gold;
+            document.getElementById('waveText').innerText = wave;
+        }
+
+        /* 遊戲主更新邏輯迴圈 */
+        function update() {
+            // 1. 更新背景雲朵位置（製造緩慢飄動的白天動態背景）
+            clouds.forEach(cloud => {
+                cloud.x += cloud.speed;
+                if (cloud.x > canvas.width + 50) {
+                    cloud.x = -50; // 飄出右側後重置到左側
+                }
+            });
+
+            // 2. 處理敵人生成
+            if (gameStarted && waveEnemiesLeft > 0) {
+                spawnTimer++;
+                if (spawnTimer > 45) { // 每隔一段時間生成一隻敵人
+                    enemies.push({
+                        x: path[0].x,
+                        y: path[0].y,
+                        pathIndex: 0,
+                        progress: 0,
+                        maxHealth: 50 + wave * 15,
+                        health: 50 + wave * 15,
+                        speed: 1.5 + wave * 0.1,
+                        radius: 14
+                    });
+                    waveEnemiesLeft--;
+                    spawnTimer = 0;
+                }
+            }
+
+            // 3. 更新敵人移動位置
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let enemy = enemies[i];
+                let targetPoint = path[enemy.pathIndex + 1];
+
+                if (!targetPoint) {
+                    // 敵人走到終點扣血並移除
+                    lives--;
+                    updateUI();
+                    enemies.splice(i, 1);
+                    if (lives <= 0) {
+                        alert('遊戲結束！可愛的村莊被攻陷了 >_<');
+                        resetGame();
+                    }
+                    continue;
+                }
+
+                // 計算移動向量朝向下一個路徑點
+                let dx = targetPoint.x - enemy.x;
+                let dy = targetPoint.y - enemy.y;
+                let dist = Math.hypot(dx, dy);
+
+                if (dist < enemy.speed) {
+                    // 到達當前節點，切換至下一個路徑點
+                    enemy.x = targetPoint.x;
+                    enemy.y = targetPoint.y;
+                    enemy.pathIndex++;
+                } else {
+                    // 繼續往目標點移動
+                    enemy.x += (dx / dist) * enemy.speed;
+                    enemy.y += (dy / dist) * enemy.speed;
+                }
+            }
+
+            // 4. 防禦塔攻擊邏輯
+            towers.forEach(tower => {
+                if (tower.timer > 0) tower.timer--;
+
+                // 尋找攻擊範圍內的第一個敵人
+                let target = null;
+                for (let enemy of enemies) {
+                    let dist = Math.hypot(enemy.x - tower.x, enemy.y - tower.y);
+                    if (dist <= tower.range) {
+                        target = enemy;
+                        break;
+                    }
+                }
+
+                // 若找到目標且冷卻完畢，發射子彈
+                if (target && tower.timer === 0) {
+                    bullets.push({
+                        x: tower.x,
+                        y: tower.y,
+                        targetX: target.x,
+                        targetY: target.y,
+                        target: target,
+                        damage: tower.damage,
+                        speed: 6
+                    });
+                    tower.timer = tower.cooldown; // 重設冷卻時間
+                }
+            });
+
+            // 5. 更新子彈飛行位置與碰撞檢測
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                let bullet = bullets[i];
+
+                // 如果目標敵人還活著，更新目標追蹤座標
+                if (bullet.target && enemies.includes(bullet.target)) {
+                    bullet.targetX = bullet.target.x;
+                    bullet.targetY = bullet.target.y;
+                }
+
+                let dx = bullet.targetX - bullet.x;
+                let dy = bullet.targetY - bullet.y;
+                let dist = Math.hypot(dx, dy);
+
+                if (dist < bullet.speed) {
+                    // 子彈擊中目標
+                    if (bullet.target && enemies.includes(bullet.target)) {
+                        bullet.target.health -= bullet.damage;
+                        // 若敵人血量歸零，擊殺獲得金幣
+                        if (bullet.target.health <= 0) {
+                            gold += 20;
+                            updateUI();
+                            let index = enemies.indexOf(bullet.target);
+                            if (index !== -1) enemies.splice(index, 1);
+                        }
+                    }
+                    bullets.splice(i, 1); // 移除子彈
+                } else {
+                    // 子彈向目標移動
+                    bullet.x += (dx / dist) * bullet.speed;
+                    bullet.y += (dy / dist) * bullet.speed;
+                }
+            }
+
+            // 6. 檢查波次是否結束
+            if (gameStarted && waveEnemiesLeft === 0 && enemies.length === 0) {
+                gameStarted = false;
+                wave++;
+                gold += 50; // 每波通關獎勵金幣
+                updateUI();
+                if (wave > 10) {
+                    alert('恭喜你！成功守護了森林獲得勝利！🎉');
+                    resetGame();
+                }
+            }
+        }
+
+        /* 繪製遊戲畫面函數 */
+        function draw() {
+            // 清空畫布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 繪製背景：可愛的太陽
+            ctx.fillStyle = '#FFF275';
+            ctx.beginPath();
+            ctx.arc(720, 80, 45, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 繪製背景：飄動的雲朵
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            clouds.forEach(cloud => {
+                ctx.beginPath();
+                ctx.arc(cloud.x, cloud.y, cloud.size * 0.5, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.size * 0.4, cloud.y - cloud.size * 0.2, cloud.size * 0.4, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.size * 0.8, cloud.y, cloud.size * 0.45, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 繪製敵人行走的土黃色小路
+            ctx.lineWidth = 36;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#E2B887';
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(path[i].x, path[i].y);
+            }
+            ctx.stroke();
+
+            // 繪製防禦塔
+            towers.forEach(tower => {
+                // 塔的底座圓圈
+                ctx.fillStyle = towerTypes[tower.type].color;
+                ctx.beginPath();
+                ctx.arc(tower.x, tower.y, 22, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.stroke();
+
+                // 塔的可愛圖示文字
+                ctx.font = '18px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(tower.type === 1 ? '🐰' : '🐱', tower.x, tower.y);
+            });
+
+            // 繪製敵人
+            enemies.forEach(enemy => {
+                // 敵人本體（粉紅可愛史萊姆造型）
+                ctx.fillStyle = '#FF6B6B';
+                ctx.beginPath();
+                ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.stroke();
+
+                // 敵人眼睛
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(enemy.x - 4, enemy.y - 3, 3, 0, Math.PI * 2);
+                ctx.arc(enemy.x + 4, enemy.y - 3, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 血條背景
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(enemy.x - 16, enemy.y - 24, 32, 5);
+                // 血條前端
+                ctx.fillStyle = '#4ECDC4';
+                let healthPercent = enemy.health / enemy.maxHealth;
+                ctx.fillRect(enemy.x - 16, enemy.y - 24, 32 * healthPercent, 5);
+            });
+
+            // 繪製子彈
+            bullets.forEach(bullet => {
+                ctx.fillStyle = '#FFE66D';
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        /* 重置遊戲狀態 */
+        function resetGame() {
+            lives = 20;
+            gold = 150;
+            wave = 1;
+            gameStarted = false;
+            enemies = [];
+            towers = [];
+            bullets = [];
+            updateUI();
+        }
+
+        /* 遊戲主循環 (Game Loop) */
+        function gameLoop() {
+            update(); // 更新邏輯
+            draw();   // 繪製畫面
+            requestAnimationFrame(gameLoop); // 持續循環呼叫
+        }
+
+        // 啟動遊戲循環
+        updateUI();
+        gameLoop();
+    </script>
+</body>
+</html>
